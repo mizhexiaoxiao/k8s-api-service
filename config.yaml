@@ -1,0 +1,13 @@
+app:
+  host: 
+  port: 
+  readTimeout: 
+  writeTimeout: 
+db:
+  host: 
+  user: 
+  password: 
+  dbname: 
+  port: 
+  sslmode: disable
+  timeZone: Asia/Shanghai

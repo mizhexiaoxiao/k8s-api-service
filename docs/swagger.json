@@ -1,0 +1,227 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/admin/clusters": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "创建Cluster",
+                "parameters": [
+                    {
+                        "description": "RequestBody",
+                        "name": "RequestBody",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/models.ClusterSchema"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/k8s/{cluster}/deployments": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "查看deployment列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cluster",
+                        "name": "cluster",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Label",
+                        "name": "label",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    }
+                }
+            }
+        },
+        "/k8s/{cluster}/deployments/{namespace}/{deploymentName}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "查看deployment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cluster",
+                        "name": "cluster",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "DeploymentName",
+                        "name": "deploymentName",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "produces": [
+                    "application/json"
+                ],
+                "summary": "更新deployment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cluster",
+                        "name": "cluster",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Namespace",
+                        "name": "namespace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "DeploymentName",
+                        "name": "deploymentName",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "RequestBody",
+                        "name": "RequestBody",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/v1.DeploymentBody"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/app.Response"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "app.Response": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "data": {},
+                "msg": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.ClusterSchema": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "desc": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "v1.DeploymentBody": {
+            "type": "object",
+            "required": [
+                "image"
+            ],
+            "properties": {
+                "image": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
