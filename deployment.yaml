@@ -28,7 +28,7 @@ spec:
         readinessProbe:
           failureThreshold: 3
           httpGet:
-            path: /api/v1/ping
+            path: /api/v1/health_check
             port: api
             scheme: HTTP
           periodSeconds: 10

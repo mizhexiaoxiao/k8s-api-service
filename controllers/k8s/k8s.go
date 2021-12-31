@@ -13,7 +13,7 @@ import (
 	clientcmdapiv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 )
 
-var k8sClients = &sync.Map{} //请求map
+var k8sClients = &sync.Map{} //并发map
 
 func GetClient(clusterName string) (*kubernetes.Clientset, error) {
 	var (

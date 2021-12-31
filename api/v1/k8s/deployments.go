@@ -7,10 +7,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
-	v1beta1 "k8s.io/api/apps/v1beta1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -84,7 +83,8 @@ func GetDeployments(c *gin.Context) {
 }
 
 // @Summary 查看deployment
-// @Produce  json
+// @accept application/json
+// @Produce  application/json
 // @Param cluster path string true "Cluster"
 // @Param namespace path string true "Namespace"
 // @Param deploymentName path string true "DeploymentName"
@@ -145,23 +145,23 @@ func PutDeployment(c *gin.Context) {
 		return
 	}
 	if b.Label == "" {
-		deployment, err := clientset.AppsV1beta1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+		deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 		deployment.Spec.Template.Spec.Containers[0].Image = b.Image
-		_, err = clientset.AppsV1beta1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+		_, err = clientset.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
 	} else {
 		listOpts = metav1.ListOptions{LabelSelector: b.Label}
-		deployments, err := clientset.AppsV1beta1().Deployments(u.Namespace).List(context.TODO(), listOpts)
+		deployments, err := clientset.AppsV1().Deployments(u.Namespace).List(context.TODO(), listOpts)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
 		for _, deployment := range deployments.Items {
 			deployment.Spec.Template.Spec.Containers[0].Image = b.Image
-			_, err = clientset.AppsV1beta1().Deployments(u.Namespace).Update(context.TODO(), &deployment, metav1.UpdateOptions{})
+			_, err = clientset.AppsV1().Deployments(u.Namespace).Update(context.TODO(), &deployment, metav1.UpdateOptions{})
 			if err != nil {
 				appG.Fail(http.StatusInternalServerError, err, nil)
 				return
@@ -197,7 +197,7 @@ func GetDeploymentStatus(c *gin.Context) {
 		return
 	}
 	if q.Label == "" {
-		deployment, err := clientset.AppsV1beta1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+		deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
@@ -217,7 +217,7 @@ func GetDeploymentStatus(c *gin.Context) {
 		}
 	} else {
 		listOpts = metav1.ListOptions{LabelSelector: q.Label}
-		deployments, err := clientset.AppsV1beta1().Deployments(u.Namespace).List(context.TODO(), listOpts)
+		deployments, err := clientset.AppsV1().Deployments(u.Namespace).List(context.TODO(), listOpts)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
@@ -229,7 +229,6 @@ func GetDeploymentStatus(c *gin.Context) {
 				return
 			}
 			if success == false {
-				// c.JSON(http.StatusPermanentRedirect, gin.H{"retry": reasons})
 				appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
 				return
 			}
@@ -240,7 +239,7 @@ func GetDeploymentStatus(c *gin.Context) {
 
 }
 
-func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *v1beta1.Deployment) (success bool, reasons []string, err error) {
+func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Deployment) (success bool, reasons []string, err error) {
 	// 获取pod的状态
 	labelSelector := ""
 	for key, value := range deployment.Spec.Selector.MatchLabels {
@@ -293,8 +292,8 @@ func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *v1beta1.De
 	}
 
 	// deployment进行状态判定
-	availableCondition := GetDeploymentCondition(deployment.Status, v1beta1.DeploymentAvailable)
-	progressingCondition := GetDeploymentCondition(deployment.Status, v1beta1.DeploymentProgressing)
+	availableCondition := GetDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable)
+	progressingCondition := GetDeploymentCondition(deployment.Status, appsv1.DeploymentProgressing)
 
 	if deployment.Status.UpdatedReplicas != *(deployment.Spec.Replicas) ||
 		deployment.Status.Replicas != *(deployment.Spec.Replicas) ||
@@ -313,7 +312,7 @@ func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *v1beta1.De
 }
 
 // GetDeploymentCondition returns the condition with the provided type.
-func GetDeploymentCondition(status v1beta1.DeploymentStatus, condType v1beta1.DeploymentConditionType) *v1beta1.DeploymentCondition {
+func GetDeploymentCondition(status appsv1.DeploymentStatus, condType appsv1.DeploymentConditionType) *appsv1.DeploymentCondition {
 	for i := range status.Conditions {
 		c := status.Conditions[i]
 		if c.Type == condType {
@@ -349,7 +348,7 @@ func GetDeploymentPods(c *gin.Context) {
 		return
 	}
 
-	deployment, err := clientset.AppsV1beta1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+	deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -366,48 +365,3 @@ func GetDeploymentPods(c *gin.Context) {
 	}
 	appG.Success(http.StatusOK, "ok", pods)
 }
-
-var upGrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
-}
-
-func Ping(c *gin.Context) {
-	appG := app.Gin{C: c}
-	appG.Success(http.StatusOK, "ok", nil)
-	return
-}
-
-// //webSocket请求ping 返回pong
-// func Ping(c *gin.Context) {
-// 	//升级get请求为webSocket协议
-// 	ws, err := upGrader.Upgrade(c.Writer, c.Request, nil)
-// 	if err != nil {
-// 		return
-// 	}
-// 	defer ws.Close()
-// 	for {
-// 		//读取ws中的数据
-// 		mt, message, err := ws.ReadMessage()
-// 		if err != nil {
-// 			break
-// 		}
-// 		if string(message) == "ping" {
-// 			for {
-// 				message = []byte("pong")
-// 				err = ws.WriteMessage(mt, message)
-// 				if err != nil {
-// 					break
-// 				}
-// 				time.Sleep(3 * time.Second)
-// 			}
-
-// 		}
-// 		//写入ws数据
-// 		err = ws.WriteMessage(mt, message)
-// 		if err != nil {
-// 			break
-// 		}
-// 	}
-// }

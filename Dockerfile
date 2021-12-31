@@ -15,6 +15,10 @@ RUN go build -o /app/k8s-api-service
 ## Deploy
 FROM alpine
 
+RUN echo -e "http://mirrors.aliyun.com/alpine/v3.11/main\nhttp://mirrors.aliyun.com/alpine/v3.11/community" > /etc/apk/repositories \
+    && apk add -U tzdata \
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime 
+    
 WORKDIR /
 
 COPY --from=build /app/k8s-api-service /k8s-api-service

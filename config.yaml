@@ -9,5 +9,9 @@ db:
   password: 
   dbname: 
   port: 
-  sslmode: disable
-  timeZone: Asia/Shanghai
+  sslmode: 
+  timeZone: 
+# third party call
+caller:
+  value: 
+    secret: 
