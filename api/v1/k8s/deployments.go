@@ -74,7 +74,7 @@ func GetDeployments(c *gin.Context) {
 		return
 	}
 
-	deployments, err := clientset.AppsV1().Deployments(q.Namespace).List(context.TODO(), listOpts)
+	deployments, err := clientset.ClientV1.AppsV1().Deployments(q.Namespace).List(context.TODO(), listOpts)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -101,13 +101,13 @@ func GetDeployment(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -139,29 +139,29 @@ func PutDeployment(c *gin.Context) {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 	if b.Label == "" {
-		deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+		deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 		deployment.Spec.Template.Spec.Containers[0].Image = b.Image
-		_, err = clientset.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+		_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
 	} else {
 		listOpts = metav1.ListOptions{LabelSelector: b.Label}
-		deployments, err := clientset.AppsV1().Deployments(u.Namespace).List(context.TODO(), listOpts)
+		deployments, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).List(context.TODO(), listOpts)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
 		for _, deployment := range deployments.Items {
 			deployment.Spec.Template.Spec.Containers[0].Image = b.Image
-			_, err = clientset.AppsV1().Deployments(u.Namespace).Update(context.TODO(), &deployment, metav1.UpdateOptions{})
+			_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), &deployment, metav1.UpdateOptions{})
 			if err != nil {
 				appG.Fail(http.StatusInternalServerError, err, nil)
 				return
@@ -191,18 +191,18 @@ func GetDeploymentStatus(c *gin.Context) {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 	if q.Label == "" {
-		deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+		deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
-		success, reasons, err := getDeploymentStatus(clientset, deployment)
+		success, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, reasons)
 			return
@@ -217,13 +217,13 @@ func GetDeploymentStatus(c *gin.Context) {
 		}
 	} else {
 		listOpts = metav1.ListOptions{LabelSelector: q.Label}
-		deployments, err := clientset.AppsV1().Deployments(u.Namespace).List(context.TODO(), listOpts)
+		deployments, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).List(context.TODO(), listOpts)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
 		for _, deployment := range deployments.Items {
-			success, reasons, err := getDeploymentStatus(clientset, &deployment)
+			success, reasons, err := getDeploymentStatus(k8sClient.ClientV1, &deployment)
 			if err != nil {
 				appG.Fail(http.StatusInternalServerError, err, nil)
 				return
@@ -342,13 +342,13 @@ func GetDeploymentPods(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	deployment, err := clientset.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -358,7 +358,7 @@ func GetDeploymentPods(c *gin.Context) {
 		labelSelector = labelSelector + key + "=" + value + ","
 	}
 	labelSelector = strings.TrimRight(labelSelector, ",")
-	pods, err := clientset.CoreV1().Pods(deployment.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector})
+	pods, err := k8sClient.ClientV1.CoreV1().Pods(deployment.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

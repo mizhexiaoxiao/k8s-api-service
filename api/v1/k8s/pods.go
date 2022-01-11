@@ -15,6 +15,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/remotecommand"
 )
 
 type PodsQuery struct {
@@ -56,13 +58,13 @@ func GetPods(c *gin.Context) {
 		listOpts = metav1.ListOptions{LabelSelector: q.Label}
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	pods, err := clientset.CoreV1().Pods(q.Namespace).List(context.TODO(), listOpts)
+	pods, err := k8sClient.ClientV1.CoreV1().Pods(q.Namespace).List(context.TODO(), listOpts)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -80,24 +82,18 @@ func GetPod(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	pod, err := clientset.CoreV1().Pods(u.Namespace).Get(context.TODO(), u.PodName, metav1.GetOptions{})
+	pod, err := k8sClient.ClientV1.CoreV1().Pods(u.Namespace).Get(context.TODO(), u.PodName, metav1.GetOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 	appG.Success(http.StatusOK, "ok", pod)
-}
-
-var upGrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
 }
 
 type PodLogQuery struct {
@@ -108,12 +104,19 @@ type PodLogQuery struct {
 	TailLines  string `form:"tailLines" binding:"required"`
 }
 
+var upGrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
+}
+
 func GetPodLog(c *gin.Context) {
 	appG := app.Gin{C: c}
 	var (
 		u         PodUri
 		q         PodLogQuery
 		podLogOps corev1.PodLogOptions
+		wg        sync.WaitGroup
 	)
 
 	ws, err := upGrader.Upgrade(c.Writer, c.Request, nil)
@@ -145,13 +148,13 @@ func GetPodLog(c *gin.Context) {
 		TailLines:  &tailLines,
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.C.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 
-	req := clientset.CoreV1().Pods(u.Namespace).GetLogs(u.PodName, &podLogOps)
+	req := k8sClient.ClientV1.CoreV1().Pods(u.Namespace).GetLogs(u.PodName, &podLogOps)
 	readCloser, err := req.Stream(context.TODO())
 	if err != nil {
 		appG.C.AbortWithError(http.StatusInternalServerError, err)
@@ -164,7 +167,6 @@ func GetPodLog(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	appG.C.Request = c.Request.WithContext(ctx)
 
-	var wg sync.WaitGroup
 	wg.Add(1)
 
 	// The goroutine listens to the websocket. When the client cancels,
@@ -198,6 +200,87 @@ func GetPodLog(c *gin.Context) {
 	}()
 
 	wg.Wait()
+}
+
+type WebSSHQuery struct {
+	Container string `form:"container" binding:"required"`
+	Command   string `form:"command" binding:"required"`
+}
+
+func PodWebSSH(c *gin.Context) {
+	appG := app.Gin{C: c}
+	var (
+		u PodUri
+		q WebSSHQuery
+		t *WebTerminal
+	)
+
+	ws, err := upGrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	defer ws.Close()
+
+	if err := appG.C.ShouldBindUri(&u); err != nil {
+		appG.C.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	if err := appG.C.ShouldBindQuery(&q); err != nil {
+		appG.C.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	k8sClient, err := k8s.GetClient(u.Cluster)
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	sshReq := k8sClient.ClientV1.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(u.PodName).
+		Namespace(u.Namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Container: q.Container,
+			Command:   []string{q.Command},
+			Stdin:     true,
+			Stdout:    true,
+			Stderr:    true,
+			TTY:       true,
+		}, scheme.ParameterCodec)
+
+	t = &WebTerminal{
+		wsConn:   ws,
+		sizeChan: make(chan remotecommand.TerminalSize),
+		doneChan: make(chan struct{}),
+		tty:      true,
+	}
+
+	// create connection to container
+	// sshReq.URL() => https://xxxxxx/api/v1/namespaces/dev/pods/front-tracing-go-58d8dfb599-l4x94/exec?command=bash&container=app&stderr=true&stdin=true&stdout=true&tty=true
+	executor, err := remotecommand.NewSPDYExecutor(k8sClient.RestConfig, "POST", sshReq.URL())
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+	}
+
+	// Data flow processing callback between configuration and container
+	err = executor.Stream(remotecommand.StreamOptions{
+		Stdin:             t.Stdin(),
+		Stdout:            t.Stdout(),
+		Stderr:            t.Stderr(),
+		Tty:               t.Tty(),
+		TerminalSizeQueue: t,
+	})
+
+	if err != nil {
+		t.wsConn.Close()
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+	}
+
+	return
 }
 
 func HealthCheck(c *gin.Context) {

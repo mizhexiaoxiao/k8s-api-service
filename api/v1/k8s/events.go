@@ -38,7 +38,7 @@ func GetEvents(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -48,7 +48,7 @@ func GetEvents(c *gin.Context) {
 		q.Name, q.Namespace, q.Kind, q.Uid,
 	)
 	listOpts.TypeMeta = metav1.TypeMeta{Kind: q.Kind}
-	events, err := clientset.CoreV1().Events(q.Namespace).List(context.TODO(), listOpts)
+	events, err := k8sClient.ClientV1.CoreV1().Events(q.Namespace).List(context.TODO(), listOpts)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

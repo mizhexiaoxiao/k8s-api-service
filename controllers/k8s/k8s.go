@@ -7,23 +7,30 @@ import (
 
 	"github.com/mizhexiaoxiao/k8s-api-service/models"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 	clientcmdlatest "k8s.io/client-go/tools/clientcmd/api/latest"
 	clientcmdapiv1 "k8s.io/client-go/tools/clientcmd/api/v1"
 )
 
+type K8sClient struct {
+	RestConfig *rest.Config
+	ClientV1   *kubernetes.Clientset
+}
+
 var k8sClients = &sync.Map{} //并发map
 
-func GetClient(clusterName string) (*kubernetes.Clientset, error) {
+func GetClient(clusterName string) (*K8sClient, error) {
 	var (
-		cluster models.Cluster
-		context clientcmdapiv1.Config
-		err     error
+		cluster   models.Cluster
+		context   clientcmdapiv1.Config
+		err       error
+		k8sClient *K8sClient
 	)
 	client, ok := k8sClients.Load(clusterName)
 	if ok {
-		return client.(*kubernetes.Clientset), nil
+		return client.(*K8sClient), nil
 	}
 
 	err = models.DB.Model(&models.ClusterModel{}).Where("name = ?", clusterName).First(&cluster).Error
@@ -34,12 +41,17 @@ func GetClient(clusterName string) (*kubernetes.Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	clientset, err := BuildClient(cluster.Name, context)
+	clientset, restConf, err := BuildClient(cluster.Name, context)
 	if err != nil {
 		return nil, err
 	}
-	k8sClients.Store(clusterName, clientset)
-	return clientset, nil
+	k8sClient = &K8sClient{
+		RestConfig: restConf,
+		ClientV1:   clientset,
+	}
+
+	k8sClients.Store(clusterName, k8sClient)
+	return k8sClient, nil
 }
 
 // func GetLocalClient(clusterID string) (*kubernetes.Clientset, error) {
@@ -86,7 +98,7 @@ const (
 	defaultResyncPeriod = 30 * time.Second
 )
 
-func BuildClient(server string, configV1 clientcmdapiv1.Config) (*kubernetes.Clientset, error) {
+func BuildClient(server string, configV1 clientcmdapiv1.Config) (*kubernetes.Clientset, *rest.Config, error) {
 	configObject, err := clientcmdlatest.Scheme.ConvertToVersion(&configV1, clientcmdapi.SchemeGroupVersion)
 	configInternal := configObject.(*clientcmdapi.Config)
 
@@ -96,7 +108,7 @@ func BuildClient(server string, configV1 clientcmdapiv1.Config) (*kubernetes.Cli
 		}).ClientConfig()
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	clientConfig.QPS = defaultQPS
@@ -105,8 +117,8 @@ func BuildClient(server string, configV1 clientcmdapiv1.Config) (*kubernetes.Cli
 	clientSet, err := kubernetes.NewForConfig(clientConfig)
 
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	return clientSet, nil
+	return clientSet, clientConfig, nil
 }

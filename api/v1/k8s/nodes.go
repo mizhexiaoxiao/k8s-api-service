@@ -23,13 +23,13 @@ func GetNodes(c *gin.Context) {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	deployments, err := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	deployments, err := k8sClient.ClientV1.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

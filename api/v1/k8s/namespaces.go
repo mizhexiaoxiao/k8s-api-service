@@ -24,13 +24,13 @@ func GetNamespaces(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	namespaces, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	namespaces, err := k8sClient.ClientV1.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

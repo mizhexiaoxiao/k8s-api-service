@@ -42,12 +42,12 @@ func GetServices(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 	}
 
-	deployments, err := clientset.CoreV1().Services(q.Namespace).List(context.TODO(), metav1.ListOptions{})
+	deployments, err := k8sClient.ClientV1.CoreV1().Services(q.Namespace).List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -63,12 +63,12 @@ func GetService(c *gin.Context) {
 		return
 	}
 
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 	}
 
-	service, err := clientset.CoreV1().Services(u.Namespace).Get(context.TODO(), u.ServiceName, metav1.GetOptions{})
+	service, err := k8sClient.ClientV1.CoreV1().Services(u.Namespace).Get(context.TODO(), u.ServiceName, metav1.GetOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

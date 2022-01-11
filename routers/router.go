@@ -26,6 +26,7 @@ func InitRouter() *gin.Engine {
 		// k8s api
 		apiv1.GET("/health_check", k8sv1.HealthCheck)
 		apiv1.GET("/k8s/:cluster/pods", k8sv1.GetPods)
+		apiv1.GET("/k8s/:cluster/pods/:namespace/:podName/ssh", k8sv1.PodWebSSH)
 		apiv1.GET("/k8s/:cluster/pods/:namespace/:podName/log", k8sv1.GetPodLog)
 		apiv1.GET("/k8s/:cluster/pods/:namespace/:podName", k8sv1.GetPod)
 
