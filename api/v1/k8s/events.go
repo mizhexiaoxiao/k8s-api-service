@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
@@ -49,6 +50,10 @@ func GetEvents(c *gin.Context) {
 	)
 	listOpts.TypeMeta = metav1.TypeMeta{Kind: q.Kind}
 	events, err := k8sClient.ClientV1.CoreV1().Events(q.Namespace).List(context.TODO(), listOpts)
+	for i := 0; i < len(events.Items); i++ {
+		events.Items[i].CreationTimestamp = metav1.NewTime(events.Items[i].CreationTimestamp.Add(8 * time.Hour))
+	}
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

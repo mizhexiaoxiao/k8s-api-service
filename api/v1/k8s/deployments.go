@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
@@ -75,6 +76,10 @@ func GetDeployments(c *gin.Context) {
 	}
 
 	deployments, err := clientset.ClientV1.AppsV1().Deployments(q.Namespace).List(context.TODO(), listOpts)
+	for i := 0; i < len(deployments.Items); i++ {
+		deployments.Items[i].CreationTimestamp = metav1.NewTime(deployments.Items[i].CreationTimestamp.Add(8 * time.Hour))
+	}
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -108,6 +113,8 @@ func GetDeployment(c *gin.Context) {
 	}
 
 	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+	deployment.CreationTimestamp = metav1.NewTime(deployment.CreationTimestamp.Add(8 * time.Hour))
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

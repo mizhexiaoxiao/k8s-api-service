@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -65,6 +66,10 @@ func GetPods(c *gin.Context) {
 	}
 
 	pods, err := k8sClient.ClientV1.CoreV1().Pods(q.Namespace).List(context.TODO(), listOpts)
+	for i := 0; i < len(pods.Items); i++ {
+		pods.Items[i].CreationTimestamp = metav1.NewTime(pods.Items[i].CreationTimestamp.Add(8 * time.Hour))
+	}
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -89,6 +94,8 @@ func GetPod(c *gin.Context) {
 	}
 
 	pod, err := k8sClient.ClientV1.CoreV1().Pods(u.Namespace).Get(context.TODO(), u.PodName, metav1.GetOptions{})
+	pod.CreationTimestamp = metav1.NewTime(pod.CreationTimestamp.Add(8 * time.Hour))
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
