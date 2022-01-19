@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
@@ -47,12 +48,16 @@ func GetServices(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 	}
 
-	deployments, err := k8sClient.ClientV1.CoreV1().Services(q.Namespace).List(context.TODO(), metav1.ListOptions{})
+	services, err := k8sClient.ClientV1.CoreV1().Services(q.Namespace).List(context.TODO(), metav1.ListOptions{})
+	for i := 0; i < len(services.Items); i++ {
+		services.Items[i].CreationTimestamp = metav1.NewTime(services.Items[i].CreationTimestamp.Add(8 * time.Hour))
+	}
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-	appG.Success(http.StatusOK, "ok", deployments)
+	appG.Success(http.StatusOK, "ok", services)
 }
 
 func GetService(c *gin.Context) {
@@ -69,6 +74,8 @@ func GetService(c *gin.Context) {
 	}
 
 	service, err := k8sClient.ClientV1.CoreV1().Services(u.Namespace).Get(context.TODO(), u.ServiceName, metav1.GetOptions{})
+	service.CreationTimestamp = metav1.NewTime(service.CreationTimestamp.Add(8 * time.Hour))
+
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

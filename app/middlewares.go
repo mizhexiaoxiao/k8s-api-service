@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +24,7 @@ func Auth() gin.HandlerFunc {
 		configSecret := config.GetString("caller" + "." + appKey + ".secret")
 		if configSecret == "" {
 			appG.Fail(http.StatusInternalServerError, errors.New(fmt.Sprintf("Please carry appKey and appSecret in the request header")), nil)
+			log.Println(errors.New(fmt.Sprintf("Please carry appKey and appSecret in the request header")))
 			c.Abort()
 			return
 		}

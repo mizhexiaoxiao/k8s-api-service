@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -151,9 +152,12 @@ func PutDeployment(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
+
 	if b.Label == "" {
 		deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
 		deployment.Spec.Template.Spec.Containers[0].Image = b.Image
+		// force update
+		deployment.Spec.Template.Annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
 		_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
@@ -168,6 +172,8 @@ func PutDeployment(c *gin.Context) {
 		}
 		for _, deployment := range deployments.Items {
 			deployment.Spec.Template.Spec.Containers[0].Image = b.Image
+			// force update
+			deployment.Spec.Template.Annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
 			_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), &deployment, metav1.UpdateOptions{})
 			if err != nil {
 				appG.Fail(http.StatusInternalServerError, err, nil)
