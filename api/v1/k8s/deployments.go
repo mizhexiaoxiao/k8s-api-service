@@ -37,8 +37,9 @@ type DeploymentUri struct {
 }
 
 type DeploymentBody struct {
-	Image string `json:"image" form:"image" binding:"required"`
-	Label string `json:"label" form:"label"`
+	Image    string `json:"image" form:"image" binding:"required"`
+	Label    string `json:"label" form:"label"`
+	Replicas string `json:"replicas" form:"replicas"`
 }
 
 // @Summary 查看deployment列表
@@ -155,6 +156,16 @@ func PutDeployment(c *gin.Context) {
 
 	if b.Label == "" {
 		deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+		//update deployment replicas
+		if b.Replicas != "" {
+			replicas, err := strconv.ParseInt(b.Replicas, 10, 32)
+			if err != nil {
+				appG.Fail(http.StatusInternalServerError, err, nil)
+				return
+			}
+			r := int32(replicas)
+			deployment.Spec.Replicas = &r
+		}
 		deployment.Spec.Template.Spec.Containers[0].Image = b.Image
 		// force update
 		deployment.Spec.Template.Annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)

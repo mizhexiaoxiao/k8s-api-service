@@ -289,9 +289,3 @@ func PodWebSSH(c *gin.Context) {
 
 	return
 }
-
-func HealthCheck(c *gin.Context) {
-	appG := app.Gin{C: c}
-	appG.Success(http.StatusOK, "ok", nil)
-	return
-}
