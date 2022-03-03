@@ -37,7 +37,7 @@ type DeploymentUri struct {
 }
 
 type DeploymentBody struct {
-	Image    string `json:"image" form:"image" binding:"required"`
+	Image    string `json:"image" form:"image"`
 	Label    string `json:"label" form:"label"`
 	Replicas string `json:"replicas" form:"replicas"`
 }
@@ -156,7 +156,8 @@ func PutDeployment(c *gin.Context) {
 
 	if b.Label == "" {
 		deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
-		//update deployment replicas
+
+		// update replicas
 		if b.Replicas != "" {
 			replicas, err := strconv.ParseInt(b.Replicas, 10, 32)
 			if err != nil {
@@ -164,11 +165,25 @@ func PutDeployment(c *gin.Context) {
 				return
 			}
 			r := int32(replicas)
-			deployment.Spec.Replicas = &r
+			sc, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).GetScale(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+			sc.Spec.Replicas = r
+			_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).UpdateScale(context.TODO(), u.DeploymentName, sc, metav1.UpdateOptions{})
+			if err != nil {
+				appG.Fail(http.StatusInternalServerError, err, nil)
+				return
+			}
+			appG.Success(http.StatusOK, "deployment replicas update to "+b.Replicas, nil)
+			return
 		}
-		deployment.Spec.Template.Spec.Containers[0].Image = b.Image
+
+		// update image
+		if b.Image != "" {
+			deployment.Spec.Template.Spec.Containers[0].Image = b.Image
+		}
+
 		// force update
-		deployment.Spec.Template.Annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
+		ForceUpdate(deployment)
+
 		_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, nil)
@@ -184,7 +199,7 @@ func PutDeployment(c *gin.Context) {
 		for _, deployment := range deployments.Items {
 			deployment.Spec.Template.Spec.Containers[0].Image = b.Image
 			// force update
-			deployment.Spec.Template.Annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
+			ForceUpdate(&deployment)
 			_, err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), &deployment, metav1.UpdateOptions{})
 			if err != nil {
 				appG.Fail(http.StatusInternalServerError, err, nil)
@@ -388,4 +403,14 @@ func GetDeploymentPods(c *gin.Context) {
 		return
 	}
 	appG.Success(http.StatusOK, "ok", pods)
+}
+
+func ForceUpdate(deployment *appsv1.Deployment) {
+	if deployment.Spec.Template.Annotations == nil {
+		annotations := make(map[string]string)
+		annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
+		deployment.Spec.Template.Annotations = annotations
+	} else {
+		deployment.Spec.Template.Annotations["Deployment.UpdateTimestamp"] = strconv.FormatInt(time.Now().Unix(), 10)
+	}
 }
