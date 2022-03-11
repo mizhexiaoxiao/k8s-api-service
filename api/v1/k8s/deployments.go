@@ -212,6 +212,31 @@ func PutDeployment(c *gin.Context) {
 
 }
 
+func DeleteDeployment(c *gin.Context) {
+	appG := app.Gin{C: c}
+
+	var u DeploymentUri
+
+	if err := appG.C.ShouldBindUri(&u); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	k8sClient, err := k8s.GetClient(u.Cluster)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	err = k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Delete(context.TODO(), u.DeploymentName, metav1.DeleteOptions{})
+
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	appG.Success(http.StatusOK, "ok", nil)
+}
+
 func GetDeploymentStatus(c *gin.Context) {
 	appG := app.Gin{C: c}
 
@@ -241,16 +266,16 @@ func GetDeploymentStatus(c *gin.Context) {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
-		success, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
+		status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, reasons)
 			return
 		}
-		if success == true {
+		if status == 200 {
 			appG.Success(http.StatusOK, "ok", nil)
 			return
 		}
-		if success == false {
+		if status == 308 {
 			appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
 			return
 		}
@@ -261,13 +286,17 @@ func GetDeploymentStatus(c *gin.Context) {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
+		if len(deployments.Items) == 0 {
+			appG.Fail(http.StatusNotFound, errors.New("deployments not found"), nil)
+			return
+		}
 		for _, deployment := range deployments.Items {
-			success, reasons, err := getDeploymentStatus(k8sClient.ClientV1, &deployment)
+			status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, &deployment)
 			if err != nil {
-				appG.Fail(http.StatusInternalServerError, err, nil)
+				appG.Fail(status, err, nil)
 				return
 			}
-			if success == false {
+			if status == 308 {
 				appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
 				return
 			}
@@ -278,7 +307,7 @@ func GetDeploymentStatus(c *gin.Context) {
 
 }
 
-func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Deployment) (success bool, reasons []string, err error) {
+func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Deployment) (status int, reasons []string, err error) {
 	// 获取pod的状态
 	labelSelector := ""
 	for key, value := range deployment.Spec.Selector.MatchLabels {
@@ -288,9 +317,11 @@ func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Dep
 	podList, err := clientset.CoreV1().Pods(deployment.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector})
 
 	if err != nil {
-		return false, []string{"get pods status error"}, err
+		return 500, []string{"get pods status error"}, err
 	}
-
+	if len(podList.Items) == 0 {
+		return 404, []string{"pods not found"}, errors.New("pods not found")
+	}
 	readyPod := 0
 	unavailablePod := 0
 	waitingReasons := []string{}
@@ -321,13 +352,13 @@ func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Dep
 
 	// 根据container状态判定
 	if len(waitingReasons) != 0 {
-		return false, waitingReasons, nil
+		return 308, waitingReasons, nil
 	}
 
 	// 根据pod状态判定
 	if int32(readyPod) < *(deployment.Spec.Replicas) ||
 		int32(unavailablePod) != 0 {
-		return false, []string{"pods not ready!"}, nil
+		return 308, []string{"pods not ready!"}, nil
 	}
 
 	// deployment进行状态判定
@@ -339,15 +370,15 @@ func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Dep
 		deployment.Status.AvailableReplicas != *(deployment.Spec.Replicas) ||
 		availableCondition.Status != "True" ||
 		progressingCondition.Status != "True" {
-		return false, []string{"deployments not ready!"}, nil
+		return 308, []string{"deployments not ready!"}, nil
 	}
 
 	if deployment.Status.ObservedGeneration < deployment.Generation {
-		return false, []string{"observed generation less than generation!"}, nil
+		return 308, []string{"observed generation less than generation!"}, nil
 	}
 
 	// 发布成功
-	return true, []string{}, nil
+	return 200, []string{}, nil
 }
 
 // GetDeploymentCondition returns the condition with the provided type.
