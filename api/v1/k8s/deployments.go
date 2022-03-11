@@ -71,13 +71,13 @@ func GetDeployments(c *gin.Context) {
 	} else {
 		listOpts = metav1.ListOptions{LabelSelector: q.Label}
 	}
-	clientset, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(u.Cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	deployments, err := clientset.ClientV1.AppsV1().Deployments(q.Namespace).List(context.TODO(), listOpts)
+	deployments, err := k8sClient.ClientV1.AppsV1().Deployments(q.Namespace).List(context.TODO(), listOpts)
 	for i := 0; i < len(deployments.Items); i++ {
 		deployments.Items[i].CreationTimestamp = metav1.NewTime(deployments.Items[i].CreationTimestamp.Add(8 * time.Hour))
 	}

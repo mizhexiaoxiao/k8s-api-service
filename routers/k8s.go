@@ -23,6 +23,11 @@ func addK8sRoutes(rg *gin.RouterGroup) {
 	router.GET("/:cluster/services", k8sv1.GetServices)
 	router.GET("/:cluster/services/:namespace/:serviceName", k8sv1.GetService)
 
+	router.GET("/:cluster/cronjobs", k8sv1.GetCronJobs)
+	router.GET("/:cluster/cronjobs/:namespace/:cronjobName", k8sv1.GetCronJob)
+	router.PUT("/:cluster/cronjobs/:namespace/:cronjobName", k8sv1.PutCronJob)
+	router.DELETE("/:cluster/cronjobs/:namespace/:cronjobName", k8sv1.DeleteCronJob)
+
 	router.GET("/:cluster/events", k8sv1.GetEvents)
 
 	router.GET("/:cluster/nodes", k8sv1.GetNodes)
