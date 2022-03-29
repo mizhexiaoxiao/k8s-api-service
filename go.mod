@@ -14,6 +14,7 @@ require (
 	gorm.io/datatypes v1.0.4
 	gorm.io/driver/postgres v1.2.3
 	gorm.io/gorm v1.22.4
+	istio.io/api v0.0.0-20211213163208-276abc55e8b6
 	istio.io/client-go v1.12.2
 	k8s.io/api v0.23.1
 	k8s.io/apimachinery v0.23.1
@@ -82,7 +83,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
 	gorm.io/driver/mysql v1.2.1 // indirect
-	istio.io/api v0.0.0-20211213163208-276abc55e8b6 // indirect
 	istio.io/gogo-genproto v0.0.0-20210113155706-4daf5697332f // indirect
 	k8s.io/klog/v2 v2.30.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect
