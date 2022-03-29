@@ -2,6 +2,7 @@ package v1
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -27,8 +28,9 @@ type CronJobUri struct {
 }
 
 type CronJobBody struct {
-	Schedule string `json:"schedule" form:"schedule"`
-	Suspend  string `json:"suspend" form:"suspend"`
+	Spec  v1beta1.CronJobSpec `json:"spec" form:"spec"`
+	Image string              `json:"image" form:"image"`
+	Label string              `json:"label" form:"label"`
 }
 
 func GetCronJobs(c *gin.Context) {
@@ -130,8 +132,9 @@ func PutCronJob(c *gin.Context) {
 	appG := app.Gin{C: c}
 
 	var (
-		u CronJobUri
-		b v1beta1.CronJobSpec
+		u        CronJobUri
+		b        CronJobBody
+		listOpts metav1.ListOptions
 	)
 	if err := appG.C.ShouldBindUri(&u); err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
@@ -147,20 +150,42 @@ func PutCronJob(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-
-	cronjob, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Get(context.TODO(), u.CronJobName, metav1.GetOptions{})
-	if err != nil {
-		appG.Fail(http.StatusInternalServerError, err, nil)
-		return
+	if b.Label == "" {
+		cronjob, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Get(context.TODO(), u.CronJobName, metav1.GetOptions{})
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+		cronjob.Spec = b.Spec
+		_, err = k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Update(context.TODO(), cronjob, metav1.UpdateOptions{})
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+	} else {
+		//bulk update
+		listOpts = metav1.ListOptions{LabelSelector: b.Label}
+		cronjobs, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).List(context.TODO(), listOpts)
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+		for _, cronjob := range cronjobs.Items {
+			containers := cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers
+			if len(containers) != 1 {
+				appG.Fail(http.StatusInternalServerError, errors.New(cronjob.Name+" containers more than 2, unkown which one to update, please check"), nil)
+				return
+			}
+			cronjob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image = b.Image
+			_, err = k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Update(context.TODO(), &cronjob, metav1.UpdateOptions{})
+			if err != nil {
+				appG.Fail(http.StatusInternalServerError, err, nil)
+				return
+			}
+		}
 	}
-	cronjob.Spec = b
-	ucronjob, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Update(context.TODO(), cronjob, metav1.UpdateOptions{})
-	if err != nil {
-		appG.Fail(http.StatusInternalServerError, err, nil)
-		return
-	}
 
-	appG.Success(http.StatusOK, "Updated CronJob Successfully", ucronjob)
+	appG.Success(http.StatusOK, "Updated CronJob Successfully", nil)
 }
 
 func DeleteCronJob(c *gin.Context) {
