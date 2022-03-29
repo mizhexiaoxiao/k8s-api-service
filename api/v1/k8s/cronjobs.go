@@ -3,16 +3,17 @@ package v1
 import (
 	"context"
 	"net/http"
-	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
+	"k8s.io/api/batch/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-type CronJobssQuery struct {
+type CronJobsQuery struct {
 	Namespace string `form:"namespace"`
+	Label     string `form:"label"`
 }
 
 type CronJobsUri struct {
@@ -34,8 +35,9 @@ func GetCronJobs(c *gin.Context) {
 	appG := app.Gin{C: c}
 
 	var (
-		u CronJobsUri
-		q CronJobssQuery
+		u        CronJobsUri
+		q        CronJobsQuery
+		listOpts metav1.ListOptions
 	)
 
 	if err := appG.C.ShouldBindUri(&u); err != nil {
@@ -52,8 +54,12 @@ func GetCronJobs(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-
-	cronjobs, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(q.Namespace).List(context.TODO(), metav1.ListOptions{})
+	if q.Label == "" {
+		listOpts = metav1.ListOptions{}
+	} else {
+		listOpts = metav1.ListOptions{LabelSelector: q.Label}
+	}
+	cronjobs, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(q.Namespace).List(context.TODO(), listOpts)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -87,12 +93,45 @@ func GetCronJob(c *gin.Context) {
 	appG.Success(http.StatusOK, "ok", cronjob)
 }
 
+func PostCronJob(c *gin.Context) {
+	appG := app.Gin{C: c}
+
+	var (
+		u CronJobsUri
+		b v1beta1.CronJob
+	)
+
+	if err := appG.C.ShouldBindUri(&u); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	if err := appG.C.ShouldBindJSON(&b); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	k8sClient, err := k8s.GetClient(u.Cluster)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	cronjob, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(b.Namespace).Create(context.TODO(), &b, metav1.CreateOptions{})
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	appG.Success(http.StatusOK, "Created CronJob Successfully", cronjob)
+}
+
 func PutCronJob(c *gin.Context) {
 	appG := app.Gin{C: c}
 
 	var (
-		b CronJobBody
 		u CronJobUri
+		b v1beta1.CronJobSpec
 	)
 	if err := appG.C.ShouldBindUri(&u); err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
@@ -114,19 +153,7 @@ func PutCronJob(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-	if b.Schedule != "" {
-		cronjob.Spec.Schedule = b.Schedule
-	}
-
-	if b.Suspend != "" {
-		suspend, err := strconv.ParseBool(b.Suspend)
-		if err != nil {
-			appG.Fail(http.StatusInternalServerError, err, nil)
-			return
-		}
-		cronjob.Spec.Suspend = &suspend
-	}
-
+	cronjob.Spec = b
 	ucronjob, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Update(context.TODO(), cronjob, metav1.UpdateOptions{})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
