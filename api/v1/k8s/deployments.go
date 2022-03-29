@@ -27,7 +27,8 @@ type DeploymentsUri struct {
 }
 
 type DeploymentQuery struct {
-	Label string `json:"label" form:"label"`
+	Label           string   `json:"label" form:"label"`
+	DeploymentNames []string `json:"deploymentNames" form:"deploymentNames"`
 }
 
 type DeploymentUri struct {
@@ -261,23 +262,46 @@ func GetDeploymentStatus(c *gin.Context) {
 		return
 	}
 	if q.Label == "" {
-		deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
-		if err != nil {
-			appG.Fail(http.StatusInternalServerError, err, nil)
-			return
-		}
-		status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
-		if err != nil {
-			appG.Fail(http.StatusInternalServerError, err, reasons)
-			return
-		}
-		if status == 200 {
+		// deployment name 有数据
+		if len(q.DeploymentNames) >= 1 {
+			// 遍历参数传入的deployment名字列表
+			for _, name := range q.DeploymentNames {
+				deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), name, metav1.GetOptions{})
+				if err != nil {
+					appG.Fail(http.StatusInternalServerError, err, nil)
+					return
+				}
+				status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
+				if err != nil {
+					appG.Fail(http.StatusInternalServerError, err, reasons)
+					return
+				}
+				if status == 308 {
+					appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
+					return
+				}
+			}
 			appG.Success(http.StatusOK, "ok", nil)
 			return
-		}
-		if status == 308 {
-			appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
-			return
+		} else {
+			deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+			if err != nil {
+				appG.Fail(http.StatusInternalServerError, err, nil)
+				return
+			}
+			status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
+			if err != nil {
+				appG.Fail(http.StatusInternalServerError, err, reasons)
+				return
+			}
+			if status == 200 {
+				appG.Success(http.StatusOK, "ok", nil)
+				return
+			}
+			if status == 308 {
+				appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
+				return
+			}
 		}
 	} else {
 		listOpts = metav1.ListOptions{LabelSelector: q.Label}
