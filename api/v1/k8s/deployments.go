@@ -124,6 +124,43 @@ func GetDeployment(c *gin.Context) {
 	appG.Success(http.StatusOK, "ok", deployment)
 }
 
+// PostDeployment
+// @Summary 创建deployment
+// @accept application/json
+// @Param cluster path string true "Cluster"
+// @Param deployment body appsv1.Deployment true "Deployment"
+// @Success 200 {object} app.Response
+// @Failure 500 {object} app.Response
+// @Router /k8s/{cluster}/deployments [post]
+func PostDeployment(c *gin.Context) {
+	appG := app.Gin{C: c}
+	var deployment appsv1.Deployment
+
+	cluster := appG.C.Param("cluster")
+	if cluster == "" {
+		appG.Fail(http.StatusBadRequest, errors.New("cluster param not valid"), nil)
+		return
+	}
+	if err := appG.C.ShouldBind(&deployment); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	k8sClient, err := k8s.GetClient(cluster)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	operation := k8s.NewDeploymentOperation(k8sClient.ClientV1)
+	result, err := operation.Create(&deployment)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	appG.Success(http.StatusOK, "ok", result)
+}
+
 // @Summary 更新deployment
 // @Produce  json
 // @Param cluster path string true "Cluster"
