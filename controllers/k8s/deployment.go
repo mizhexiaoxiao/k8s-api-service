@@ -8,7 +8,7 @@ import (
 )
 
 type DeploymentInterface interface {
-	Create(namespace string, deployment *appsv1.Deployment) (*appsv1.Deployment, error)
+	Create(deployment *appsv1.Deployment) (*appsv1.Deployment, error)
 }
 
 type DeploymentOperation struct {
@@ -21,7 +21,7 @@ func NewDeploymentOperation(client *kubernetes.Clientset) DeploymentInterface {
 	}
 }
 
-func (o DeploymentOperation) Create(namespace string, deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
-	deploymentsClient := o.clientSet.AppsV1().Deployments(namespace)
+func (o DeploymentOperation) Create(deployment *appsv1.Deployment) (*appsv1.Deployment, error) {
+	deploymentsClient := o.clientSet.AppsV1().Deployments(deployment.Namespace)
 	return deploymentsClient.Create(context.TODO(), deployment, metav1.CreateOptions{})
 }

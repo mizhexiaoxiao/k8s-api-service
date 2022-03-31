@@ -128,37 +128,32 @@ func GetDeployment(c *gin.Context) {
 // @Summary 创建deployment
 // @accept application/json
 // @Param cluster path string true "Cluster"
-// @Param namespace path string true "Namespace"
-// @Param deploymentName path string true "DeploymentName"
-// @Param deployment body metadata.DeploymentCreate true "Deployment"
+// @Param deployment body appsv1.Deployment true "Deployment"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
-// @Router /k8s/{cluster}/deployments/{namespace}/{deploymentName} [post]
+// @Router /k8s/{cluster}/deployments [post]
 func PostDeployment(c *gin.Context) {
 	appG := app.Gin{C: c}
-	var (
-		u          DeploymentUri
-		deployment appsv1.Deployment
-	)
+	var deployment appsv1.Deployment
 
-	if err := appG.C.ShouldBindUri(&u); err != nil {
-		appG.Fail(http.StatusBadRequest, err, nil)
+	cluster := appG.C.Param("cluster")
+	if cluster == "" {
+		appG.Fail(http.StatusBadRequest, errors.New("cluster param not valid"), nil)
 		return
 	}
 	if err := appG.C.ShouldBind(&deployment); err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
-	deployment.ObjectMeta.Name = u.DeploymentName // 名称赋值
 
-	k8sClient, err := k8s.GetClient(u.Cluster)
+	k8sClient, err := k8s.GetClient(cluster)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
 
 	operation := k8s.NewDeploymentOperation(k8sClient.ClientV1)
-	result, err := operation.Create(u.Namespace, &deployment)
+	result, err := operation.Create(&deployment)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
