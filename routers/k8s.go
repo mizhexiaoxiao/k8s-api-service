@@ -15,6 +15,7 @@ func addK8sRoutes(rg *gin.RouterGroup) {
 
 	router.GET("/:cluster/deployments", k8sv1.GetDeployments)
 	router.GET("/:cluster/deployments/:namespace/:deploymentName", k8sv1.GetDeployment)
+	router.POST("/:cluster/deployments/:namespace/:deploymentName", k8sv1.PostDeployment)
 	router.DELETE("/:cluster/deployments/:namespace/:deploymentName", k8sv1.DeleteDeployment)
 	router.PUT("/:cluster/deployments/:namespace/:deploymentName", k8sv1.PutDeployment)
 	router.GET("/:cluster/deployment_status/:namespace/:deploymentName", k8sv1.GetDeploymentStatus)

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/config"
@@ -15,7 +16,7 @@ func Auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		appG := Gin{C: c}
 		url := appG.C.Request.RequestURI
-		if url == "/api/v1/health_check" {
+		if url == "/api/v1/health_check" || strings.HasPrefix(url, "/swagger/") {
 			c.Next()
 			return
 		}
