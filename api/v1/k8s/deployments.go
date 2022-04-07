@@ -356,9 +356,7 @@ func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Dep
 	if err != nil {
 		return 500, []string{"get pods status error"}, err
 	}
-	if len(podList.Items) == 0 {
-		return 404, []string{"pods not found"}, errors.New("pods not found")
-	}
+
 	readyPod := 0
 	unavailablePod := 0
 	waitingReasons := []string{}
