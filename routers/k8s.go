@@ -38,4 +38,10 @@ func addK8sRoutes(rg *gin.RouterGroup) {
 
 	router.GET("/:cluster/nodes", k8sv1.GetNodes)
 	router.GET("/:cluster/namespaces", k8sv1.GetNamespaces)
+
+	router.POST("/:cluster/horizontalpodautoscalers", k8sv1.PostHorizontalPodAutoScalers)
+	router.GET("/:cluster/horizontalpodautoscalers", k8sv1.GetHorizontalPodAutoScalerList)
+	router.GET("/:cluster/horizontalpodautoscalers/:namespace/:name", k8sv1.GetHorizontalPodAutoScaler)
+	router.PUT("/:cluster/horizontalpodautoscalers/:namespace/:name", k8sv1.PutHorizontalPodAutoScaler)
+	router.DELETE("/:cluster/horizontalpodautoscalers/:namespace/:name", k8sv1.DeleteHorizontalPodAutoScaler)
 }
