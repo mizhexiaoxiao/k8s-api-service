@@ -128,7 +128,6 @@ func GetDeployment(c *gin.Context) {
 // @Summary 创建deployment
 // @accept application/json
 // @Param cluster path string true "Cluster"
-// @Param deployment body appsv1.Deployment true "Deployment"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
 // @Router /k8s/{cluster}/deployments [post]
@@ -153,7 +152,7 @@ func PostDeployment(c *gin.Context) {
 	}
 
 	operation := k8s.NewDeploymentOperation(k8sClient.ClientV1)
-	result, err := operation.Create(&deployment)
+	result, err := operation.Create(context.TODO(), &deployment)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
