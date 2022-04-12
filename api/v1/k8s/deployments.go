@@ -3,6 +3,7 @@ package v1
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -12,9 +13,7 @@ import (
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 )
 
 type DeploymentsQuery struct {
@@ -302,16 +301,16 @@ func GetDeploymentStatus(c *gin.Context) {
 			appG.Fail(http.StatusInternalServerError, err, nil)
 			return
 		}
-		status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, deployment)
+		status, reasons, err := getDeploymentStatus(deployment)
 		if err != nil {
 			appG.Fail(http.StatusInternalServerError, err, reasons)
 			return
 		}
-		if status == 200 {
-			appG.Success(http.StatusOK, "ok", nil)
+		if status == http.StatusOK {
+			appG.Success(http.StatusOK, reasons, nil)
 			return
 		}
-		if status == 308 {
+		if status == http.StatusPermanentRedirect {
 			appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
 			return
 		}
@@ -327,12 +326,16 @@ func GetDeploymentStatus(c *gin.Context) {
 			return
 		}
 		for _, deployment := range deployments.Items {
-			status, reasons, err := getDeploymentStatus(k8sClient.ClientV1, &deployment)
+			status, reasons, err := getDeploymentStatus(&deployment)
 			if err != nil {
-				appG.Fail(status, err, nil)
+				appG.Fail(http.StatusInternalServerError, err, nil)
 				return
 			}
-			if status == 308 {
+			if status == http.StatusOK {
+				appG.Success(http.StatusOK, reasons, nil)
+				return
+			}
+			if status == http.StatusPermanentRedirect {
 				appG.Fail(http.StatusPermanentRedirect, errors.New("retry"), reasons)
 				return
 			}
@@ -340,93 +343,34 @@ func GetDeploymentStatus(c *gin.Context) {
 		appG.Success(http.StatusOK, "ok", nil)
 		return
 	}
-
 }
 
-func getDeploymentStatus(clientset *kubernetes.Clientset, deployment *appsv1.Deployment) (status int, reasons []string, err error) {
-	// 获取pod的状态
-	labelSelector := ""
-	for key, value := range deployment.Spec.Selector.MatchLabels {
-		labelSelector = labelSelector + key + "=" + value + ","
-	}
-	labelSelector = strings.TrimRight(labelSelector, ",")
-	podList, err := clientset.CoreV1().Pods(deployment.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector})
+const (
+	TimedOutReason = "ProgressDeadlineExceeded"
+)
 
-	if err != nil {
-		return 500, []string{"get pods status error"}, err
-	}
-
-	readyPod := 0
-	unavailablePod := 0
-	waitingReasons := []string{}
-	for _, pod := range podList.Items {
-		// 记录等待原因
-		for _, containerStatus := range pod.Status.ContainerStatuses {
-			if containerStatus.State.Waiting != nil {
-				reason := "namespace: " + pod.Namespace + ", pod: " + pod.Name + ", container: " + containerStatus.Name + ", waiting reason: " + containerStatus.State.Waiting.Reason
-				waitingReasons = append(waitingReasons, reason)
-			}
+func getDeploymentStatus(deployment *appsv1.Deployment) (status int, reasons string, err error) {
+	if deployment.Generation <= deployment.Status.ObservedGeneration {
+		cond := GetDeploymentCondition(deployment.Status, appsv1.DeploymentProgressing)
+		if cond != nil && cond.Reason == TimedOutReason {
+			return http.StatusInternalServerError, "", fmt.Errorf("deployment %s exceeded its progress deadline", deployment.Name)
 		}
-
-		podScheduledCondition := GetPodCondition(pod.Status, corev1.PodScheduled)
-		initializedCondition := GetPodCondition(pod.Status, corev1.PodInitialized)
-		readyCondition := GetPodCondition(pod.Status, corev1.PodReady)
-		containersReadyCondition := GetPodCondition(pod.Status, corev1.ContainersReady)
-
-		if pod.Status.Phase == "Running" &&
-			podScheduledCondition.Status == "True" &&
-			initializedCondition.Status == "True" &&
-			readyCondition.Status == "True" &&
-			containersReadyCondition.Status == "True" {
-			readyPod++
-		} else {
-			unavailablePod++
+		if deployment.Spec.Replicas != nil && deployment.Status.UpdatedReplicas < *deployment.Spec.Replicas {
+			return http.StatusPermanentRedirect, fmt.Sprintf("Waiting for deployment %s rollout to finish: %d out of %d new replicas have been updated...", deployment.Name, deployment.Status.UpdatedReplicas, *deployment.Spec.Replicas), nil
 		}
+		if deployment.Status.Replicas > deployment.Status.UpdatedReplicas {
+			return http.StatusPermanentRedirect, fmt.Sprintf("Waiting for deployment %s rollout to finish: %d old replicas are pending termination...", deployment.Name, deployment.Status.Replicas-deployment.Status.UpdatedReplicas), nil
+		}
+		if deployment.Status.AvailableReplicas < deployment.Status.UpdatedReplicas {
+			return http.StatusPermanentRedirect, fmt.Sprintf("Waiting for deployment %s rollout to finish: %d of %d updated replicas are available...", deployment.Name, deployment.Status.AvailableReplicas, deployment.Status.UpdatedReplicas), nil
+		}
+		return http.StatusOK, fmt.Sprintf("deployment %s successfully rolled out", deployment.Name), nil
 	}
-
-	// 根据container状态判定
-	if len(waitingReasons) != 0 {
-		return 308, waitingReasons, nil
-	}
-
-	// 根据pod状态判定
-	if int32(readyPod) < *(deployment.Spec.Replicas) ||
-		int32(unavailablePod) != 0 {
-		return 308, []string{"pods not ready!"}, nil
-	}
-
-	// deployment进行状态判定
-	availableCondition := GetDeploymentCondition(deployment.Status, appsv1.DeploymentAvailable)
-	progressingCondition := GetDeploymentCondition(deployment.Status, appsv1.DeploymentProgressing)
-
-	if deployment.Status.UpdatedReplicas != *(deployment.Spec.Replicas) ||
-		deployment.Status.Replicas != *(deployment.Spec.Replicas) ||
-		deployment.Status.AvailableReplicas != *(deployment.Spec.Replicas) ||
-		availableCondition.Status != "True" ||
-		progressingCondition.Status != "True" {
-		return 308, []string{"deployments not ready!"}, nil
-	}
-
-	if deployment.Status.ObservedGeneration < deployment.Generation {
-		return 308, []string{"observed generation less than generation!"}, nil
-	}
-
-	// 发布成功
-	return 200, []string{}, nil
+	return http.StatusPermanentRedirect, fmt.Sprintf("Waiting for deployment spec update to be observed..."), nil
 }
 
 // GetDeploymentCondition returns the condition with the provided type.
 func GetDeploymentCondition(status appsv1.DeploymentStatus, condType appsv1.DeploymentConditionType) *appsv1.DeploymentCondition {
-	for i := range status.Conditions {
-		c := status.Conditions[i]
-		if c.Type == condType {
-			return &c
-		}
-	}
-	return nil
-}
-
-func GetPodCondition(status corev1.PodStatus, condType corev1.PodConditionType) *corev1.PodCondition {
 	for i := range status.Conditions {
 		c := status.Conditions[i]
 		if c.Type == condType {
