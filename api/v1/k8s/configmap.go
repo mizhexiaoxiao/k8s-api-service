@@ -2,32 +2,31 @@ package v1
 
 import (
 	"context"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
 	"github.com/mizhexiaoxiao/k8s-api-service/models/metadata"
-	v1 "k8s.io/api/autoscaling/v1"
+	v1 "k8s.io/api/core/v1"
+	"net/http"
 )
 
-// PostHorizontalPodAutoScaler
-// @Summary 创建弹性伸缩资源
+// PostConfigmap
+// @Summary 创建Configmap资源
 // @accept application/json
 // @Param cluster path string true "Cluster"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
-// @Router /k8s/{cluster}/horizontalpodautoscalers [post]
-func PostHorizontalPodAutoScaler(c *gin.Context) {
+// @Router /k8s/{cluster}/configmaps [post]
+func PostConfigmap(c *gin.Context) {
 	appG := app.Gin{C: c}
-	var scaler v1.HorizontalPodAutoscaler
+	var configMap v1.ConfigMap
 
 	param, err := app.GetPathParameterString(c, "cluster")
 	if err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
-	if err := appG.C.ShouldBind(&scaler); err != nil {
+	if err := appG.C.ShouldBind(&configMap); err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
@@ -38,8 +37,8 @@ func PostHorizontalPodAutoScaler(c *gin.Context) {
 		return
 	}
 
-	operation := k8s.NewHorizontalPodAutoScalerOperation(k8sClient.ClientV1)
-	result, err := operation.Create(context.TODO(), &scaler)
+	configMapOperation := k8s.NewConfigmapOperation(k8sClient.ClientV1)
+	result, err := configMapOperation.Create(context.TODO(), &configMap)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -47,15 +46,15 @@ func PostHorizontalPodAutoScaler(c *gin.Context) {
 	appG.Success(http.StatusOK, "ok", result)
 }
 
-// GetHorizontalPodAutoScalerList
-// @Summary 获取弹性伸缩资源列表
+// GetConfigmapList
+// @Summary 获取Configmap资源列表
 // @accept application/json
 // @Param cluster path string true "Cluster"
 // @Param param query metadata.CommonQueryParameter true "LabelSelector"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
-// @Router /k8s/{cluster}/horizontalpodautoscalers [get]
-func GetHorizontalPodAutoScalerList(c *gin.Context) {
+// @Router /k8s/{cluster}/configmaps [get]
+func GetConfigmapList(c *gin.Context) {
 	appG := app.Gin{C: c}
 	var queryParam metadata.CommonQueryParameter
 	pathParam, err := app.GetPathParameterString(c, "cluster")
@@ -73,8 +72,8 @@ func GetHorizontalPodAutoScalerList(c *gin.Context) {
 		return
 	}
 
-	operation := k8s.NewHorizontalPodAutoScalerOperation(k8sClient.ClientV1)
-	result, err := operation.List(context.TODO(), queryParam)
+	configMapOperation := k8s.NewConfigmapOperation(k8sClient.ClientV1)
+	result, err := configMapOperation.List(context.TODO(), queryParam)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -82,16 +81,16 @@ func GetHorizontalPodAutoScalerList(c *gin.Context) {
 	appG.Success(http.StatusOK, "ok", result)
 }
 
-// GetHorizontalPodAutoScaler
-// @Summary 获取弹性伸缩资源
+// GetConfigmap
+// @Summary 获取Configmap资源
 // @accept application/json
 // @Param cluster path string true "Cluster"
 // @Param namespace path string true "Namespace"
 // @Param name path string true "Name"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
-// @Router /k8s/{cluster}/horizontalpodautoscalers/{namespace}/{name} [get]
-func GetHorizontalPodAutoScaler(c *gin.Context) {
+// @Router /k8s/{cluster}/configmaps/{namespace}/{name} [get]
+func GetConfigmap(c *gin.Context) {
 	appG := app.Gin{C: c}
 	param, err := app.GetPathParameterString(c, "cluster", "namespace", "name")
 	if err != nil {
@@ -103,33 +102,33 @@ func GetHorizontalPodAutoScaler(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-	operation := k8s.NewHorizontalPodAutoScalerOperation(k8sClient.ClientV1)
-	result, err := operation.Get(context.TODO(), param["namespace"], param["name"])
+	configMapOperation := k8s.NewConfigmapOperation(k8sClient.ClientV1)
+	configMap, err := configMapOperation.Get(context.TODO(), param["namespace"], param["name"])
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-	appG.Success(http.StatusOK, "ok", result)
+	appG.Success(http.StatusOK, "ok", configMap)
 }
 
-// PutHorizontalPodAutoScaler
-// @Summary 更新弹性伸缩资源
+// PutConfigmap
+// @Summary 更新Configmap资源
 // @accept application/json
 // @Param cluster path string true "Cluster"
 // @Param namespace path string true "Namespace"
 // @Param name path string true "Name"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
-// @Router /k8s/{cluster}/horizontalpodautoscalers/{namespace}/{name} [put]
-func PutHorizontalPodAutoScaler(c *gin.Context) {
+// @Router /k8s/{cluster}/configmaps/{namespace}/{name} [put]
+func PutConfigmap(c *gin.Context) {
 	appG := app.Gin{C: c}
-	var scaler v1.HorizontalPodAutoscaler
+	var configMap v1.ConfigMap
 	param, err := app.GetPathParameterString(c, "cluster", "namespace", "name")
 	if err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
-	if err := appG.C.ShouldBind(&scaler); err != nil {
+	if err := appG.C.ShouldBind(&configMap); err != nil {
 		appG.Fail(http.StatusBadRequest, err, nil)
 		return
 	}
@@ -138,8 +137,8 @@ func PutHorizontalPodAutoScaler(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-	operation := k8s.NewHorizontalPodAutoScalerOperation(k8sClient.ClientV1)
-	result, err := operation.Update(context.TODO(), param["namespace"], param["name"], &scaler)
+	configMapOperation := k8s.NewConfigmapOperation(k8sClient.ClientV1)
+	result, err := configMapOperation.Update(context.TODO(), param["namespace"], param["name"], &configMap)
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
@@ -147,16 +146,16 @@ func PutHorizontalPodAutoScaler(c *gin.Context) {
 	appG.Success(http.StatusOK, "ok", result)
 }
 
-// DeleteHorizontalPodAutoScaler
-// @Summary 删除弹性伸缩资源
+// DeleteConfigmap
+// @Summary 删除Configmap资源
 // @accept application/json
 // @Param cluster path string true "Cluster"
 // @Param namespace path string true "Namespace"
 // @Param name path string true "Name"
 // @Success 200 {object} app.Response
 // @Failure 500 {object} app.Response
-// @Router /k8s/{cluster}/horizontalpodautoscalers/{namespace}/{name} [delete]
-func DeleteHorizontalPodAutoScaler(c *gin.Context) {
+// @Router /k8s/{cluster}/configmaps/{namespace}/{name} [delete]
+func DeleteConfigmap(c *gin.Context) {
 	appG := app.Gin{C: c}
 	param, err := app.GetPathParameterString(c, "cluster", "namespace", "name")
 	if err != nil {
@@ -169,8 +168,8 @@ func DeleteHorizontalPodAutoScaler(c *gin.Context) {
 		return
 	}
 
-	operation := k8s.NewHorizontalPodAutoScalerOperation(k8sClient.ClientV1)
-	err = operation.Delete(context.TODO(), param["namespace"], param["name"])
+	configMapOperation := k8s.NewConfigmapOperation(k8sClient.ClientV1)
+	err = configMapOperation.Delete(context.TODO(), param["namespace"], param["name"])
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
