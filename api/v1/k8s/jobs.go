@@ -103,8 +103,8 @@ func DeleteJob(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-
-	err = k8sClient.ClientV1.BatchV1().Jobs(u.Namespace).Delete(context.TODO(), u.JobName, metav1.DeleteOptions{})
+	propagationPolicy := metav1.DeletePropagationBackground
+	err = k8sClient.ClientV1.BatchV1().Jobs(u.Namespace).Delete(context.TODO(), u.JobName, metav1.DeleteOptions{PropagationPolicy: &propagationPolicy})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return

@@ -205,8 +205,8 @@ func DeleteCronJob(c *gin.Context) {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-
-	err = k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Delete(context.TODO(), u.CronJobName, metav1.DeleteOptions{})
+	propagationPolicy := metav1.DeletePropagationBackground
+	err = k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Delete(context.TODO(), u.CronJobName, metav1.DeleteOptions{PropagationPolicy: &propagationPolicy})
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
