@@ -114,6 +114,8 @@ func GetDeployment(c *gin.Context) {
 	}
 
 	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+	deployment.TypeMeta.APIVersion = "apps/v1"
+	deployment.TypeMeta.Kind = "Deployment"
 	deployment.CreationTimestamp = metav1.NewTime(deployment.CreationTimestamp.Add(8 * time.Hour))
 
 	if err != nil {
@@ -245,6 +247,43 @@ func PutDeployment(c *gin.Context) {
 
 	appG.Success(http.StatusOK, "ok", nil)
 
+}
+
+// PatchDeployment
+// @Summary 批量更新deployment
+// @Produce  json
+// @Param cluster path string true "Cluster"
+// @Param namespace path string true "Namespace"
+// @Param deploymentName path string true "DeploymentName"
+// @Success 200 {object} app.Response
+// @Failure 500 {object} app.Response
+// @Router /k8s/{cluster}/deployments/{namespace}/{deploymentName} [patch]
+func PatchDeployment(c *gin.Context) {
+	appG := app.Gin{C: c}
+	var deployment appsv1.Deployment
+
+	params, err := app.GetPathParameterString(c, "cluster", "namespace", "deploymentName")
+	if err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+	if err := appG.C.ShouldBind(&deployment); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+	k8sClient, err := k8s.GetClient(params["cluster"])
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	operation := k8s.NewDeploymentOperation(k8sClient.ClientV1)
+	result, err := operation.Update(context.TODO(), params["namespace"], params["deploymentName"], &deployment)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	appG.Success(http.StatusOK, "ok", result)
 }
 
 func DeleteDeployment(c *gin.Context) {
