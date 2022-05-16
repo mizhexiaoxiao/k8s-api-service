@@ -211,7 +211,6 @@ func GetPodLog(c *gin.Context) {
 
 type WebSSHQuery struct {
 	Container string `form:"container" binding:"required"`
-	Command   string `form:"command" binding:"required"`
 }
 
 func PodWebSSH(c *gin.Context) {
@@ -252,7 +251,7 @@ func PodWebSSH(c *gin.Context) {
 		SubResource("exec").
 		VersionedParams(&corev1.PodExecOptions{
 			Container: q.Container,
-			Command:   []string{q.Command},
+			Command:   []string{"/bin/sh", "-c", "TERM=xterm-256color; export TERM; [ -x /bin/bash ] && ([ -x /usr/bin/script ] && /usr/bin/script -q -c \"/bin/bash\" /dev/null || exec /bin/bash) || exec /bin/sh"},
 			Stdin:     true,
 			Stdout:    true,
 			Stderr:    true,

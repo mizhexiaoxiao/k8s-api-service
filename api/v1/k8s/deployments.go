@@ -41,6 +41,9 @@ type DeploymentBody struct {
 	Replicas string `json:"replicas" form:"replicas"`
 }
 
+var APIVersion = "apps/v1"
+var Kind = "Deployment"
+
 // @Summary 查看deployment列表
 // @Produce  json
 // @Param cluster path string true "Cluster"
@@ -114,8 +117,8 @@ func GetDeployment(c *gin.Context) {
 	}
 
 	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
-	deployment.TypeMeta.APIVersion = "apps/v1"
-	deployment.TypeMeta.Kind = "Deployment"
+	deployment.TypeMeta.APIVersion = APIVersion
+	deployment.TypeMeta.Kind = Kind
 	deployment.CreationTimestamp = metav1.NewTime(deployment.CreationTimestamp.Add(8 * time.Hour))
 
 	if err != nil {
