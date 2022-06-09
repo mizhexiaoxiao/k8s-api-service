@@ -21,6 +21,10 @@ type DeploymentsQuery struct {
 	Label     string `form:"label"`
 }
 
+type DeploymentActionQuery struct {
+	Action string `form:"action" binding:"required"`
+}
+
 type DeploymentsUri struct {
 	Cluster string `uri:"cluster" binding:"required"`
 }
@@ -162,6 +166,82 @@ func PostDeployment(c *gin.Context) {
 		return
 	}
 	appG.Success(http.StatusOK, "ok", result)
+}
+
+func DeploymentDoAction(c *gin.Context) {
+	appG := app.Gin{C: c}
+
+	var (
+		u DeploymentUri
+		q DeploymentActionQuery
+	)
+
+	if err := appG.C.ShouldBindUri(&u); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	if err := appG.C.ShouldBindQuery(&q); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	k8sClient, err := k8s.GetClient(u.Cluster)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	switch q.Action {
+	case "redeploy":
+		if deployment.Spec.Paused {
+			appG.Fail(http.StatusInternalServerError, errors.New("can't restart paused deployment (run rollout resume first)"), nil)
+			return
+		}
+		if deployment.Spec.Template.ObjectMeta.Annotations == nil {
+			deployment.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
+		}
+		deployment.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().String()
+		_, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+	case "pause":
+		if deployment.Spec.Paused {
+			appG.Fail(http.StatusInternalServerError, errors.New("deployment is already paused"), nil)
+			return
+		}
+		deployment.Spec.Paused = true
+		_, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+	case "resume":
+		if !deployment.Spec.Paused {
+			appG.Fail(http.StatusInternalServerError, errors.New("deployment is not paused"), nil)
+			return
+		}
+		deployment.Spec.Paused = false
+		_, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Update(context.TODO(), deployment, metav1.UpdateOptions{})
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+	default:
+		appG.Fail(http.StatusBadRequest, errors.New("Invalid parameter, must be redeploy|pause|resume"), nil)
+		return
+	}
+
+	appG.Success(http.StatusOK, "ok", nil)
+
 }
 
 // @Summary 更新deployment
