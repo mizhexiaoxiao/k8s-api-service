@@ -8,7 +8,7 @@ import (
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
 	networkingv1alpha3 "istio.io/api/networking/v1alpha3"
-	v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	"istio.io/client-go/pkg/apis/networking/v1alpha3"
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
