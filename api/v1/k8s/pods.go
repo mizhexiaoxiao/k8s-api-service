@@ -103,6 +103,32 @@ func GetPod(c *gin.Context) {
 	appG.Success(http.StatusOK, "ok", pod)
 }
 
+func DeletePod(c *gin.Context) {
+	appG := app.Gin{C: c}
+	var (
+		u PodUri
+	)
+	if err := appG.C.ShouldBindUri(&u); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+
+	k8sClient, err := k8s.GetClient(u.Cluster)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	err = k8sClient.ClientV1.CoreV1().Pods(u.Namespace).Delete(context.TODO(), u.PodName, metav1.DeleteOptions{})
+
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	appG.Success(http.StatusOK, "ok", nil)
+
+}
+
 type PodLogQuery struct {
 	Container  string `form:"container" binding:"required"`
 	Follow     string `form:"follow" binding:"required"`
