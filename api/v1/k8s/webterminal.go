@@ -63,7 +63,8 @@ func (t *WebTerminal) Read(p []byte) (n int, err error) {
 
 	var msg TerminalMessage
 	if err := json.Unmarshal([]byte(message), &msg); err != nil {
-		return copy(p, EndOfTransmission), err
+		// binary data receive
+		return copy(p, message), nil
 	}
 	switch msg.Operation {
 	case "stdin":
@@ -79,14 +80,7 @@ func (t *WebTerminal) Read(p []byte) (n int, err error) {
 }
 
 func (t *WebTerminal) Write(p []byte) (n int, err error) {
-	msg, err := json.Marshal(TerminalMessage{
-		Operation: "stdout",
-		Data:      string(p),
-	})
-	if err != nil {
-		return copy(p, []byte(EndOfTransmission)), err
-	}
-	if err := t.wsConn.WriteMessage(websocket.TextMessage, msg); err != nil {
+	if err := t.wsConn.WriteMessage(websocket.BinaryMessage, p); err != nil {
 		return copy(p, []byte(EndOfTransmission)), err
 	}
 	return len(p), nil
