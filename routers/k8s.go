@@ -51,4 +51,9 @@ func addK8sRoutes(rg *gin.RouterGroup) {
 	router.GET("/:cluster/configmaps/:namespace/:name", k8sv1.GetConfigmap)
 	router.PUT("/:cluster/configmaps/:namespace/:name", k8sv1.PutConfigmap)
 	router.DELETE("/:cluster/configmaps/:namespace/:name", k8sv1.DeleteConfigmap)
+
+	router.GET("/:cluster/crd/:group/:version/:resource/:namespace/:name", k8sv1.GetCRD)
+	router.POST("/:cluster/crd/:group/:version/:resource", k8sv1.PostCRD)
+	router.PUT("/:cluster/crd/:group/:version/:resource/:namespace/:name", k8sv1.PutCRD)
+	router.DELETE("/:cluster/crd/:group/:version/:resource/:namespace/:name", k8sv1.DeleteCRD)
 }
