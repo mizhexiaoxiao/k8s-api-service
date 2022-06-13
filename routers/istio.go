@@ -19,4 +19,10 @@ func addIstioRoutes(rg *gin.RouterGroup) {
 	router.GET("/:cluster/dr/:namespace/:drName", istiov1.GetDestinationRule)
 	router.PUT("/:cluster/dr/:namespace/:drName", istiov1.PutDestinationRule)
 	router.DELETE("/:cluster/dr/:namespace/:drName", istiov1.DeleteDestinationRule)
+
+	router.GET("/:cluster/vs/:namespace/:vsName/routes", istiov1.GetVSHttpRoutes)
+	router.POST("/:cluster/vs/:namespace/:vsName/routes", istiov1.AddVSHttpRoute)
+	router.GET("/:cluster/vs/:namespace/:vsName/routes/:routeName", istiov1.GetVSHttpRoute)
+	router.PUT("/:cluster/vs/:namespace/:vsName/routes/:routeName", istiov1.UpdateVSHttpRoute)
+	router.DELETE("/:cluster/vs/:namespace/:vsName/routes/:routeName", istiov1.DeleteVSHttpRoute)
 }
