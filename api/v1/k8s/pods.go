@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"github.com/mizhexiaoxiao/k8s-api-service/utils"
 	"io"
 	"net/http"
 	"strconv"
@@ -247,8 +248,8 @@ func DownloadPodContainerLog(c *gin.Context) {
 		appG.C.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
-
-	content, err := k8sClient.ClientV1.CoreV1().Pods(params["namespace"]).GetLogs(params["podName"], &corev1.PodLogOptions{Container: params["containerName"]}).Do(context.TODO()).Raw()
+	podLogOption := &corev1.PodLogOptions{Container: params["containerName"], LimitBytes: utils.Int64Addr(50 * 1024 * 1024)} // 限制导出最大50Mb
+	content, err := k8sClient.ClientV1.CoreV1().Pods(params["namespace"]).GetLogs(params["podName"], podLogOption).Do(context.TODO()).Raw()
 	if err != nil {
 		appG.C.AbortWithError(http.StatusInternalServerError, err)
 		return
