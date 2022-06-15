@@ -3,6 +3,7 @@ package v1
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -233,6 +234,27 @@ func GetPodLog(c *gin.Context) {
 	}()
 
 	wg.Wait()
+}
+
+func DownloadPodContainerLog(c *gin.Context) {
+	appG := app.Gin{C: c}
+	params, err := app.GetPathParameterString(appG.C, "cluster", "namespace", "podName", "containerName")
+	if err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+	}
+	k8sClient, err := k8s.GetClient(params["cluster"])
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	content, err := k8sClient.ClientV1.CoreV1().Pods(params["namespace"]).GetLogs(params["podName"], &corev1.PodLogOptions{Container: params["containerName"]}).Do(context.TODO()).Raw()
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	appG.C.Writer.Header().Set("Content-Disposition", fmt.Sprintf("Attachment; Filename=%s-%s.log", params["podName"], params["containerName"]))
+	appG.C.Data(http.StatusOK, "Application/OCTET-Stream", content)
 }
 
 type WebSSHQuery struct {

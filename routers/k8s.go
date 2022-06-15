@@ -11,6 +11,7 @@ func addK8sRoutes(rg *gin.RouterGroup) {
 	router.GET("/:cluster/pods", k8sv1.GetPods)
 	router.GET("/:cluster/pods/:namespace/:podName/ssh", k8sv1.PodWebSSH)
 	router.GET("/:cluster/pods/:namespace/:podName/log", k8sv1.GetPodLog)
+	router.GET("/:cluster/pods/:namespace/:podName/:containerName/download_log", k8sv1.DownloadPodContainerLog)
 	router.GET("/:cluster/pods/:namespace/:podName", k8sv1.GetPod)
 	router.DELETE("/:cluster/pods/:namespace/:podName", k8sv1.DeletePod)
 
