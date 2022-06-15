@@ -33,6 +33,9 @@ type CronJobBody struct {
 	Label string              `json:"label" form:"label"`
 }
 
+var BatchV1BetaVersion = "batch/v1beta1"
+var CronJobKind = "CronJob"
+
 func GetCronJobs(c *gin.Context) {
 	appG := app.Gin{C: c}
 
@@ -88,6 +91,8 @@ func GetCronJob(c *gin.Context) {
 	}
 
 	cronjob, err := k8sClient.ClientV1.BatchV1beta1().CronJobs(u.Namespace).Get(context.TODO(), u.CronJobName, metav1.GetOptions{})
+	cronjob.APIVersion = BatchV1BetaVersion
+	cronjob.Kind = CronJobKind
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
