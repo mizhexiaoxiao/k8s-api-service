@@ -45,8 +45,8 @@ type DeploymentBody struct {
 	Replicas string `json:"replicas" form:"replicas"`
 }
 
-var APIVersion = "apps/v1"
-var Kind = "Deployment"
+var AppV1APIVersion = "apps/v1"
+var DeploymentKind = "Deployment"
 
 // @Summary 查看deployment列表
 // @Produce  json
@@ -121,8 +121,8 @@ func GetDeployment(c *gin.Context) {
 	}
 
 	deployment, err := k8sClient.ClientV1.AppsV1().Deployments(u.Namespace).Get(context.TODO(), u.DeploymentName, metav1.GetOptions{})
-	deployment.TypeMeta.APIVersion = APIVersion
-	deployment.TypeMeta.Kind = Kind
+	deployment.TypeMeta.APIVersion = AppV1APIVersion
+	deployment.TypeMeta.Kind = DeploymentKind
 	deployment.CreationTimestamp = metav1.NewTime(deployment.CreationTimestamp.Add(8 * time.Hour))
 
 	if err != nil {
