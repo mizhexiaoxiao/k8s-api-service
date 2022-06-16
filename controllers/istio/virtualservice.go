@@ -3,7 +3,6 @@ package istio
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
@@ -280,12 +279,10 @@ func (o VSHttpRouteOperation) Update(ctx context.Context, vsName, routeName stri
 	// if canary weight changed, then update weight and use stable match replace canary match
 	switch vr.CanaryWeightSwitch {
 	case true:
-		if vr.CanaryWeight != dstWeight && len(route.Route) == 2 {
+		if len(route.Route) == 2 {
 			route.Route[dstIndex].Weight = vr.CanaryWeight
 			route.Route[1-dstIndex].Weight = 100 - vr.CanaryWeight
 			route.Match = stableRoute.Match
-		} else {
-			log.Printf("canary weight not changed, do nothing")
 		}
 	default:
 		if stableUri := getVsMatchUri(stableRoute); stableUri != nil {
