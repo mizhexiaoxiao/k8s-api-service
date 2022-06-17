@@ -6,11 +6,56 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/mizhexiaoxiao/k8s-api-service/app"
 	"github.com/mizhexiaoxiao/k8s-api-service/controllers/k8s"
+	"github.com/mizhexiaoxiao/k8s-api-service/models/metadata"
 	"io/ioutil"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"net/http"
 )
+
+// GetCRDs
+// @Summary 获取CRD自定义资源列表
+// @accept application/json
+// @Param cluster path string true "Cluster"
+// @Param group path string true "Group"
+// @Param version path string true "Version"
+// @Param resource path string true "Resource"
+// @Param namespace path string true "Namespace"
+// @Param name path string true "Name"
+// @Success 200 {object} app.Response
+// @Failure 500 {object} app.Response
+// @Router /k8s/{cluster}/crd/{group}/{version}/{resource}/{namespace} [get]
+func GetCRDs(c *gin.Context) {
+	appG := app.Gin{C: c}
+	var queryParam metadata.CommonQueryParameter
+	param, err := app.GetPathParameterString(c, "cluster", "group", "version", "resource")
+	if err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+	if err := appG.C.ShouldBindQuery(&queryParam); err != nil {
+		appG.Fail(http.StatusBadRequest, err, nil)
+		return
+	}
+	k8sClient, err := k8s.GetClient(param["cluster"])
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	dyn, err := dynamic.NewForConfig(k8sClient.RestConfig)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	crdOperation := k8s.NewCRDOperation(dyn)
+	gvk := schema.GroupVersionResource{Group: param["group"], Version: param["version"], Resource: param["resource"]}
+	unstructuredList, err := crdOperation.List(context.TODO(), gvk, queryParam)
+	if err != nil {
+		appG.Fail(http.StatusInternalServerError, err, nil)
+		return
+	}
+	appG.Success(http.StatusOK, "ok", unstructuredList)
+}
 
 // GetCRD
 // @Summary 获取CRD自定义资源
