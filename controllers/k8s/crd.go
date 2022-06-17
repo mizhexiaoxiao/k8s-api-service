@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"errors"
+	"github.com/mizhexiaoxiao/k8s-api-service/models/metadata"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -13,6 +14,7 @@ type CRDInterface interface {
 	Create(ctx context.Context, gvk schema.GroupVersionResource, data map[string]interface{}) (*unstructured.Unstructured, error)
 	Delete(ctx context.Context, gvk schema.GroupVersionResource, namespace, name string) error
 	Get(ctx context.Context, gvk schema.GroupVersionResource, namespace, name string) (*unstructured.Unstructured, error)
+	List(ctx context.Context, gvk schema.GroupVersionResource, queryParam metadata.CommonQueryParameter) (*unstructured.UnstructuredList, error)
 	Update(ctx context.Context, gvk schema.GroupVersionResource, namespace, name string, data map[string]interface{}) (*unstructured.Unstructured, error)
 }
 
@@ -39,6 +41,10 @@ func (o *CRDOperation) Create(ctx context.Context, gvk schema.GroupVersionResour
 	}
 	obj := unstructured.Unstructured{Object: data}
 	return o.dyn.Resource(gvk).Namespace(namespace).Create(ctx, &obj, metav1.CreateOptions{})
+}
+
+func (o *CRDOperation) List(ctx context.Context, gvk schema.GroupVersionResource, queryParam metadata.CommonQueryParameter) (*unstructured.UnstructuredList, error) {
+	return o.dyn.Resource(gvk).Namespace(queryParam.NameSpace).List(ctx, metav1.ListOptions{})
 }
 
 func (o *CRDOperation) Update(ctx context.Context, gvk schema.GroupVersionResource, namespace, name string, data map[string]interface{}) (*unstructured.Unstructured, error) {

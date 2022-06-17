@@ -34,7 +34,10 @@ func (c ConfigmapOperation) Create(ctx context.Context, confMap *v1.ConfigMap) (
 
 func (c ConfigmapOperation) List(ctx context.Context, queryParam metadata.CommonQueryParameter) ([]v1.ConfigMap, error) {
 	configMaps := c.clientSet.CoreV1().ConfigMaps(queryParam.NameSpace)
-	option := metav1.ListOptions{LabelSelector: queryParam.LabelSelector}
+	option := metav1.ListOptions{}
+	if queryParam.LabelSelector != "" {
+		option.LabelSelector = queryParam.LabelSelector
+	}
 	result, err := configMaps.List(ctx, option)
 	if err != nil {
 		return nil, errors.New(fmt.Sprintf("List() configmap failed, err: %s", err))
