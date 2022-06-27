@@ -128,6 +128,7 @@ func WatchPods(c *gin.Context) {
 		q        PodsQuery
 		u        PodsUri
 		listOpts metav1.ListOptions
+		wg       sync.WaitGroup
 	)
 
 	if err := appG.C.ShouldBindUri(&u); err != nil {
@@ -168,38 +169,43 @@ func WatchPods(c *gin.Context) {
 	ctx, cancel := context.WithCancel(c.Request.Context())
 	appG.C.Request = c.Request.WithContext(ctx)
 
+	wg.Add(1)
+
 	// The goroutine listens to the websocket. When the client cancels,
 	// it executes the cancel() callback to close the request context.
 	go func() {
 		for {
 			if _, _, err := ws.NextReader(); err != nil {
-				ws.Close()
 				cancel()
-				w.Stop()
+				ws.Close()
+				wg.Done()
 				break
 			}
 		}
 	}()
 
-	for event := range w.ResultChan() {
-		pod, ok := event.Object.(*corev1.Pod)
-		formatStatus, err := k8s.GetFormatStatus(pod)
-		if err != nil {
-			return
-		}
-		resp := &ExtraPodResp{
-			Object: &ExtraPod{
-				Pod:          pod,
-				FormatStatus: formatStatus,
-			},
-			Type: string(event.Type),
-		}
+	go func() {
+		for event := range w.ResultChan() {
+			pod, ok := event.Object.(*corev1.Pod)
+			formatStatus, err := k8s.GetFormatStatus(pod)
+			if err != nil {
+				appG.C.AbortWithError(http.StatusInternalServerError, err)
+			}
+			resp := &ExtraPodResp{
+				Object: &ExtraPod{
+					Pod:          pod,
+					FormatStatus: formatStatus,
+				},
+				Type: string(event.Type),
+			}
 
-		if ok {
-			ws.WriteJSON(resp)
+			if ok {
+				ws.WriteJSON(resp)
+			}
 		}
-	}
+	}()
 
+	wg.Wait()
 }
 
 func GetPod(c *gin.Context) {
