@@ -9,6 +9,7 @@ func addK8sRoutes(rg *gin.RouterGroup) {
 	router := rg.Group("/k8s")
 
 	router.GET("/:cluster/pods", k8sv1.GetPods)
+	router.GET("/:cluster/watch/pods", k8sv1.WatchPods)
 	router.GET("/:cluster/pods/:namespace/:podName/ssh", k8sv1.PodWebSSH)
 	router.GET("/:cluster/pods/:namespace/:podName/log", k8sv1.GetPodLog)
 	router.GET("/:cluster/pods/:namespace/:podName/:containerName/download_log", k8sv1.DownloadPodContainerLog)

@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/mizhexiaoxiao/k8s-api-service/utils"
 	"io"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/mizhexiaoxiao/k8s-api-service/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -38,6 +39,29 @@ type PodUri struct {
 	Cluster   string `uri:"cluster" binding:"required"`
 	Namespace string `uri:"namespace" binding:"required"`
 	PodName   string `uri:"podName" binding:"required"`
+}
+
+type ExtraPodList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+	Items           []*ExtraPod `json:"items"`
+}
+
+type ExtraPod struct {
+	*corev1.Pod
+	FormatStatus *k8s.PodFormatStatus `json:"formatStatus"`
+}
+
+type ExtraPodResp struct {
+	Object *ExtraPod `json:"object"`
+	Type   string    `json:"type"`
+}
+
+// upgrade websocket
+var upGrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func GetPods(c *gin.Context) {
@@ -71,12 +95,111 @@ func GetPods(c *gin.Context) {
 	for i := 0; i < len(pods.Items); i++ {
 		pods.Items[i].CreationTimestamp = metav1.NewTime(pods.Items[i].CreationTimestamp.Add(8 * time.Hour))
 	}
-
+	newPodItems := make([]*ExtraPod, len(pods.Items))
+	for i := range pods.Items {
+		pod := pods.Items[i]
+		formatStatus, err := k8s.GetFormatStatus(&pod)
+		if err != nil {
+			appG.Fail(http.StatusInternalServerError, err, nil)
+			return
+		}
+		newPod := ExtraPod{
+			Pod:          &pod,
+			FormatStatus: formatStatus,
+		}
+		newPodItems[i] = &newPod
+	}
+	newPodList := &ExtraPodList{
+		TypeMeta: pods.TypeMeta,
+		ListMeta: pods.ListMeta,
+		Items:    newPodItems,
+	}
 	if err != nil {
 		appG.Fail(http.StatusInternalServerError, err, nil)
 		return
 	}
-	appG.Success(http.StatusOK, "ok", pods)
+	appG.Success(http.StatusOK, "ok", newPodList)
+}
+
+func WatchPods(c *gin.Context) {
+	appG := app.Gin{C: c}
+
+	var (
+		q        PodsQuery
+		u        PodsUri
+		listOpts metav1.ListOptions
+	)
+
+	if err := appG.C.ShouldBindUri(&u); err != nil {
+		appG.C.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+	if err := appG.C.ShouldBindQuery(&q); err != nil {
+		appG.C.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	ws, err := upGrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	defer ws.Close()
+
+	if q.Label == "" {
+		listOpts = metav1.ListOptions{}
+	} else {
+		listOpts = metav1.ListOptions{LabelSelector: q.Label}
+	}
+
+	k8sClient, err := k8s.GetClient(u.Cluster)
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	w, err := k8sClient.ClientV1.CoreV1().Pods(q.Namespace).Watch(context.TODO(), listOpts)
+	if err != nil {
+		appG.C.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	//cancel context
+	ctx, cancel := context.WithCancel(c.Request.Context())
+	appG.C.Request = c.Request.WithContext(ctx)
+
+	// The goroutine listens to the websocket. When the client cancels,
+	// it executes the cancel() callback to close the request context.
+	go func() {
+		for {
+			if _, _, err := ws.NextReader(); err != nil {
+				ws.Close()
+				cancel()
+				w.Stop()
+				break
+			}
+		}
+	}()
+
+	for event := range w.ResultChan() {
+		pod, ok := event.Object.(*corev1.Pod)
+		formatStatus, err := k8s.GetFormatStatus(pod)
+		if err != nil {
+			return
+		}
+		resp := &ExtraPodResp{
+			Object: &ExtraPod{
+				Pod:          pod,
+				FormatStatus: formatStatus,
+			},
+			Type: string(event.Type),
+		}
+
+		if ok {
+			ws.WriteJSON(resp)
+		}
+	}
+
 }
 
 func GetPod(c *gin.Context) {
@@ -137,12 +260,6 @@ type PodLogQuery struct {
 	Previous   string `form:"previous" binding:"required"`
 	Timestamps string `form:"timestamps" binding:"required"`
 	TailLines  string `form:"tailLines" binding:"required"`
-}
-
-var upGrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true
-	},
 }
 
 func GetPodLog(c *gin.Context) {
